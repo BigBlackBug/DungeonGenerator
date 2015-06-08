@@ -78,9 +78,14 @@ public class Generator {
                         c = Color.GREEN;
                     }
                 }
+
                 graphics.setColor(c);
                 graphics.fillRect(i * 10, j * 10, 10, 10);
             }
+        }
+        for (Room room : rooms) {
+            graphics.setColor(Color.BLUE);
+            graphics.drawRect(room.bottomLeft.x * 10, room.bottomLeft.y* 10, room.width*10, room.height*10);
         }
         image.flush();
         ImageIO.write(image, "png", new File(name + "test2.png"));
@@ -102,8 +107,9 @@ public class Generator {
 
     public void generate() throws IOException {
         placeCenterRoom();
-        int counter=0;
-        while(counter!=10){
+        long time = System.currentTimeMillis();
+        int counter = 0;
+        while (counter != 20) {
             Point[] walls = getWalls();
 //        render("1");
 //        for (Point wall : walls) {
@@ -118,51 +124,60 @@ public class Generator {
 //            generateCorridor(element);
 //        } else {
             boolean b = generateRoom(element);
-            if(b){
+            if (b) {
                 counter++;
             }
             render("ASD");
 //        }
         }
+        System.out.println(System.currentTimeMillis() - time + "msec");
     }
 
     private boolean generateRoom(Point wall) {
-        int centerRoomWidth = random.nextInt(5) + 3;//2-5
-        int centerRoomHeight = random.nextInt(5) + 3;//2-5
+        int width = random.nextInt(5) + 3;//2-5
+        int height = random.nextInt(5) + 3;//2-5
         int x = 0, y = 0;
         //проверки на возможно вставки
         if (world[wall.x][wall.y - 1] != null) {
             //NORTH         ++
-            int contactX = random.nextInt(centerRoomWidth);
+            int contactX = random.nextInt(width);
             x = wall.x - contactX;
             y = wall.y + 1;
+            if (!canPlaceRoom(x - 1, y, width + 2, height + 1)) {
+                return false;
+            }
         } else if (world[wall.x][wall.y + 1] != null) {
             //SOUTH ++
-            int contactX = random.nextInt(centerRoomWidth);
+            int contactX = random.nextInt(width);
             x = wall.x - contactX;
-            y = wall.y - centerRoomHeight;
+            y = wall.y - height;
+            if (!canPlaceRoom(x - 1, y - 1, width + 2, height + 2)) {
+                return false;
+            }
         } else if (world[wall.x - 1][wall.y] != null) {
             //east
-            int contactY = random.nextInt(centerRoomHeight);
+            int contactY = random.nextInt(height);
             y = wall.y - contactY;
             x = wall.x + 1;
+            if (!canPlaceRoom(x, y - 1, width + 1, height + 2)) {
+                return false;
+            }
         } else if (world[wall.x + 1][wall.y] != null) {
             //west                 ++
-            int contactY = random.nextInt(centerRoomHeight);
+            int contactY = random.nextInt(height);
             y = wall.y - contactY;
-            x = wall.x - centerRoomWidth;
+            x = wall.x - width;
+            if (!canPlaceRoom(x - 1, y - 1, width + 2, height + 2)) {
+                return false;
+            }
         } else {
             //попали на угол
             return false;
         }
-        if (!canPlaceRoom(x, y, centerRoomWidth, centerRoomHeight)) {
-            return false;
-        }
         world[wall.x][wall.y] = BlockType.CORRIDOR;
-        placeRoom(x, y, centerRoomWidth, centerRoomHeight);
+        placeRoom(x, y, width, height);
         Point bottomLeft = new Point(x, y);
-        Point topRight = new Point(x + centerRoomWidth, y + centerRoomHeight);
-        Room room = new Room(bottomLeft, topRight);
+        Room room = new Room(bottomLeft, width, height);
         rooms.add(room);
         //чек все 4 стороны
         return true;
@@ -170,7 +185,7 @@ public class Generator {
 
     private boolean canPlaceRoom(int x, int y, int w, int h) {
         for (Room room : rooms) {
-            if (room.intersects(x-1, y-1, w+1, h+1)) {
+            if (room.intersects(x, y, w, h)) {
                 return false;
             }
         }
@@ -187,16 +202,15 @@ public class Generator {
     }
 
     private void placeCenterRoom() {
-        int centerRoomWidth = random.nextInt(5) + 3;//2-5
-        int centerRoomHeight = random.nextInt(5) + 3;//2-5
-        int x = size / 2 - centerRoomWidth / 2;
-        int y = size / 2 - centerRoomHeight / 2;
+        int width = random.nextInt(5) + 3;//2-5
+        int height = random.nextInt(5) + 3;//2-5
+        int x = size / 2 - width / 2;
+        int y = size / 2 - height / 2;
         Point bottomLeft = new Point(x, y);
-        Point topRight = new Point(x + centerRoomWidth, y + centerRoomHeight);
-        Room room = new Room(bottomLeft, topRight);
+        Room room = new Room(bottomLeft, width, height);
         rooms.add(room);
 
-        placeRoom(x, y, centerRoomWidth, centerRoomHeight);
+        placeRoom(x, y, width, height);
     }
 
     private void placeRoom(int x, int y, int centerRoomWidth, int centerRoomHeight) {
@@ -209,11 +223,14 @@ public class Generator {
 
 
     private static class Room {
-        public Point bottomLeft, topRight;
+        public Point bottomLeft;
+        private int width;
+        private int height;
 
-        public Room(Point bottomLeft, Point topRight) {
+        public Room(Point bottomLeft, int width, int height) {
             this.bottomLeft = bottomLeft;
-            this.topRight = topRight;
+            this.width = width;
+            this.height = height;
             this.walls = getWalls();
         }
 
@@ -222,15 +239,15 @@ public class Generator {
         public List<Point> getWalls() {
             List<Point> walls = new ArrayList<Point>();
             //hori
-            for (int x = bottomLeft.x - 1; x <= topRight.x; x++) {
+            for (int x = bottomLeft.x - 1; x <= bottomLeft.x + width; x++) {
                 //add checks
                 walls.add(new Point(x, bottomLeft.y - 1));
-                walls.add(new Point(x, topRight.y));
+                walls.add(new Point(x, bottomLeft.y + height));
             }
             //vert
-            for (int y = bottomLeft.y; y <= topRight.y; y++) {
+            for (int y = bottomLeft.y; y <= bottomLeft.y + height; y++) {
                 walls.add(new Point(bottomLeft.x - 1, y));
-                walls.add(new Point(topRight.x, y));
+                walls.add(new Point(bottomLeft.x + width, y));
             }
             return walls;
         }
@@ -238,8 +255,8 @@ public class Generator {
         public boolean intersects(int x, int y, int w, int h) {
             return (x + w > bottomLeft.x &&
                     y + h > bottomLeft.y &&
-                    x < topRight.x &&
-                    y < topRight.y);
+                    x < bottomLeft.x + width &&
+                    y < bottomLeft.y + height);
         }
     }
 
